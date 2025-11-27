@@ -1,0 +1,161 @@
+digraph G {
+	Node1EC2EEB8BF0[shape = Mrecord, style = "filled", fillcolor = "#cb88fd", label = <
+	<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="5">
+		<TR>
+			<TD> ptr: 0x1EC2EEB8BF0 </TD>
+		</TR>
+
+		<TR>
+			<TD> / </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#cf9d91"> left: 0x1EC2EEBA160 </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#d0a2d0"> right: 0x1EC2EEB9F50</TD>
+		</TR>
+	</TABLE>>];
+
+	Node1EC2EEBA160[shape = Mrecord, style = "filled", fillcolor = "#cf9d91", label = <
+	<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="5">
+		<TR>
+			<TD> ptr: 0x1EC2EEBA160 </TD>
+		</TR>
+
+		<TR>
+			<TD> * </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#cddefd"> left: 0x1EC2EEBA0D0 </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#dbd284"> right: 0x1EC2EEB8CE0</TD>
+		</TR>
+	</TABLE>>];
+
+	Node1EC2EEBA0D0[shape = Mrecord, style = "filled", fillcolor = "#cddefd", label = <
+	<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="5">
+		<TR>
+			<TD> ptr: 0x1EC2EEBA0D0 </TD>
+		</TR>
+
+		<TR>
+			<TD> * </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#bfbeb7"> left: 0x1EC2EEBA190 </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#d0a3fc"> right: 0x1EC2EEBA130</TD>
+		</TR>
+	</TABLE>>];
+
+	Node1EC2EEBA190[shape = Mrecord, style = "filled", fillcolor = "#bfbeb7", label = <
+	<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="5">
+		<TR>
+			<TD> ptr: 0x1EC2EEBA190 </TD>
+		</TR>
+
+		<TR>
+			<TD> -1 </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#808080"> left: NULL </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#808080"> right: NULL</TD>
+		</TR>
+	</TABLE>>];
+
+	Node1EC2EEBA0D0->Node1EC2EEBA190;
+	Node1EC2EEBA130[shape = Mrecord, style = "filled", fillcolor = "#d0a3fc", label = <
+	<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="5">
+		<TR>
+			<TD> ptr: 0x1EC2EEBA130 </TD>
+		</TR>
+
+		<TR>
+			<TD> sin </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#808080"> left: NULL </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#ce8efd"> right: 0x1EC2EEB9B30</TD>
+		</TR>
+	</TABLE>>];
+
+	Node1EC2EEB9B30[shape = Mrecord, style = "filled", fillcolor = "#ce8efd", label = <
+	<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="5">
+		<TR>
+			<TD> ptr: 0x1EC2EEB9B30 </TD>
+		</TR>
+
+		<TR>
+			<TD> x </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#808080"> left: NULL </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#808080"> right: NULL</TD>
+		</TR>
+	</TABLE>>];
+
+	Node1EC2EEBA130->Node1EC2EEB9B30;
+	Node1EC2EEBA0D0->Node1EC2EEBA130;
+	Node1EC2EEBA160->Node1EC2EEBA0D0;
+	Node1EC2EEB8CE0[shape = Mrecord, style = "filled", fillcolor = "#dbd284", label = <
+	<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="5">
+		<TR>
+			<TD> ptr: 0x1EC2EEB8CE0 </TD>
+		</TR>
+
+		<TR>
+			<TD> 5 </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#808080"> left: NULL </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#808080"> right: NULL</TD>
+		</TR>
+	</TABLE>>];
+
+	Node1EC2EEBA160->Node1EC2EEB8CE0;
+	Node1EC2EEB8BF0->Node1EC2EEBA160;
+	Node1EC2EEB9F50[shape = Mrecord, style = "filled", fillcolor = "#d0a2d0", label = <
+	<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="5">
+		<TR>
+			<TD> ptr: 0x1EC2EEB9F50 </TD>
+		</TR>
+
+		<TR>
+			<TD> 25 </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#808080"> left: NULL </TD>
+		</TR>
+
+		<TR>
+			<TD BGCOLOR = "#808080"> right: NULL</TD>
+		</TR>
+	</TABLE>>];
+
+	Node1EC2EEB8BF0->Node1EC2EEB9F50;
+}
