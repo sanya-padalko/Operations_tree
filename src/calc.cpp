@@ -28,10 +28,7 @@ double Sin(Node_t* left, Node_t* right) {
     return sin(GetValue(right));
 }
 
-double Pow_c(Node_t* left, Node_t* right) {
-    if (GetValue(left) < 0)
-        return NAN;
-    
+double Pow(Node_t* left, Node_t* right) {
     return pow(GetValue(left), GetValue(right));
 }
 
@@ -52,4 +49,55 @@ double Log(Node_t* left, Node_t* right) {
         return NAN;
 
     return log(b) / log(a);
+}
+
+double Exp(Node_t* left, Node_t* right) {
+    double power = GetValue(right);
+
+    return exp(power);
+}
+
+double Tan(Node_t* left, Node_t* right) {
+    double a = GetValue(right);
+
+    return tan(a);
+}
+
+double Cot(Node_t* left, Node_t* right) {
+    double a = GetValue(right);
+
+    if (sin(a) == 0)
+        return NAN;
+
+    return cos(a) / sin(a);
+}
+
+double Acos(Node_t* left, Node_t* right) {
+    double a = GetValue(right);
+
+    if (a < -1 || a > 1)
+        return NAN;
+
+    return acos(a);
+}
+
+double Asin(Node_t* left, Node_t* right) {
+    double a = GetValue(right);
+
+    if (a < -1 || a > 1)
+        return NAN;
+
+    return asin(a);
+}
+
+double Atan(Node_t* left, Node_t* right) {
+    double a = GetValue(right);
+
+    return atan(a);
+}
+
+double Acot(Node_t* left, Node_t* right) {
+    double a = GetValue(right);
+
+    return M_PI_2 - atan(a);
 }
