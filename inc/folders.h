@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-void MakeDir();
+void MakeDir(const char* folder_name);
+const char* GetTime();
 
 #endif //_FOLDERS_H_
