@@ -3,15 +3,13 @@
 #define READ(name)  scanf("%[^\n]", name); \
                     getchar();
 
-#define ull unsigned long long
-
 Forest_t* ForestCtor() {
     Forest_t* forest = (Forest_t*)calloc(1, sizeof(Forest_t));
     my_assert(forest, CALLOC_ERR, NULL);
 
     forest->html_file_name = "dump.html";
     forest->dot_file_name = "tree.dot";
-    forest->tex_file_name = "dump.tex";
+    forest->tex_file_name = "../dump.tex";
 
     for (int i = 0; i < MAX_DIFFER; ++i)
         forest->tree[i] = TreeCtor();
@@ -113,6 +111,48 @@ int GetSize(Node_t* root) {
     return sz;
 }
 
+CodeError_t SetParams(const char* param_file, Forest_t** forest, double* x0, int* der_cnt, char** var_name, double* x_delta, double* y_delta) {
+    if (!param_file || !forest || !x0 || !der_cnt || !var_name || !x_delta || !y_delta)
+        return NULLPTR;
+
+    FILE* params = fopen(param_file, "r");
+    (*forest)->buf = (char*)calloc(100, sizeof(char));
+    fscanf(params, "%[^\n]", (*forest)->buf);
+
+    char* cmd = (char*)calloc(50, sizeof(char));
+
+    while (fscanf(params, "%s", cmd) == 1) {
+        if (strcmp(cmd, "set")) {
+            printf(RED_COLOR "Wrong param's function\n" RESET_COLOR);
+            return VALUE_ERR;
+        }
+
+        char* type = (char*)calloc(100, sizeof(char));
+        fscanf(params, "%s", type);
+
+        if (!strcmp(type, "x0")) {
+            fscanf(params, " %lf", x0);
+        }
+        else if (!strcmp(type, "var_name")) {
+            *var_name = (char*)calloc(50, sizeof(char));
+            fscanf(params, "%s", *var_name);
+        }
+        else if (!strcmp(type, "differ")) {
+            fscanf(params, "%d", der_cnt);
+        }
+        else if (!strcmp(type, "x_delta")) {
+            fscanf(params, "%lf", x_delta);
+        }
+        else if (!strcmp(type, "y_delta")) {
+            fscanf(params, "%lf", y_delta);
+        }
+    }
+
+    fclose(params);
+
+    return NOTHING;
+}
+
 CodeError_t ReadBase(Forest_t* forest, const char* file_name) {
     my_assert(forest, NULLPTR, NULLPTR);
     my_assert(file_name, NULLPTR, NULLPTR);
@@ -137,76 +177,55 @@ int get_file_size(const char* file_name) {
     return file_stat.st_size;
 }
 
-int CheckOper(const char* str) {
-    for (int i = 0; i < OPER_CNT; ++i) {
-        if (!strcmp(str, opers[i].base_view))
-            return i;
-    }
+CodeError_t ParseForest(Forest_t* forest) {
+    if (!forest || !forest->buf)
+        return NULLPTR;
 
-    return -1;
+    const char* cur_pos = forest->buf;
+    forest->tree[0] = TreeCtor();
+    forest->tree[0]->root = GetG(&cur_pos);
+
+    return NOTHING;
 }
 
-Node_t* ParseBase(char** cur_pos, Forest_t* forest) {
-    my_assert(cur_pos, NULLPTR, NULL);
-    my_assert(*cur_pos, NULLPTR, NULL);
-    my_assert(forest, NULLPTR, NULL);
+CodeError_t SelectForestVars(Forest_t* forest) {
+    if (!forest)
+        return NULLPTR;
 
-    ValueType* value = (ValueType*)calloc(1, sizeof(ValueType));
-    value->value = 0;
+    SelectTreeVars(forest->tree[0]->root, forest);
 
-    if (**cur_pos == '(') {
-        ++*cur_pos;
+    return NOTHING;
+}
 
-        Node_t* node = NodeCtor(NUM, value, NULL, NULL);
-        int read_bytes = 0;
+void SelectTreeVars(Node_t* node, Forest_t* forest) {
+    if (!node || !forest) 
+        return;
 
-        char* str = (char*)calloc(100, sizeof(char));
-        sscanf(*cur_pos, " %[^ ] %n", str, &read_bytes);
-        *cur_pos += read_bytes;
+    if (node->type == NUM)
+        return;
 
-        int oper_ind = CheckOper(str);
-
-        if (oper_ind != -1) {
-            node->type = OPER;
-            node->value->type = opers[oper_ind].type;
-        }
-        else if (isdigit(str[0])) {
-            node->type = NUM;
-            node->value->value = atoi(str);
-        }
-        else {
-            node->type = VAR;
-            node->value->name = str;
-
-            forest->vars[forest->var_cnt++] = VarCtor(str);
-        }
-
-        node->left = ParseBase(cur_pos, forest);
-        node->right = ParseBase(cur_pos, forest);
-
-        if (**cur_pos != ')') {
-            printerr(RED_COLOR "ERRORS IN TEXT OF BASE\n" RESET_COLOR);
-            return node;
-        }
-
-        ++*cur_pos;
-        sscanf(*cur_pos, " %n", &read_bytes);
-        *cur_pos += read_bytes;
-
-        return node;
+    if (node->type == VAR) {
+        if (!CheckVars(forest, node->value->name))
+            forest->vars[forest->var_cnt++] = VarCtor(node->value->name);
+        return;
     }
 
-    if (**cur_pos == 'n') {
-        *cur_pos += strlen("nil");
+    SelectTreeVars(node->left, forest);
+    SelectTreeVars(node->right, forest);
 
-        int read_bytes = 0;
-        sscanf(*cur_pos, " %n", &read_bytes);
-        *cur_pos += read_bytes;
-        return NULL;
+    return;
+}
+
+bool CheckVars(Forest_t* forest, char* var_name) {
+    if (!forest || !var_name)
+        return false;
+
+    for (int i = 0; i < forest->var_cnt; ++i) {
+        if (!strcmp(forest->vars[i]->name, var_name))
+            return true;
     }
-
-    printerr(RED_COLOR "ERRORS IN TEXT OF BASE\n" RESET_COLOR);
-    return NULL;
+    
+    return false;
 }
 
 Var_t* VarCtor(char* name) {
@@ -215,206 +234,6 @@ Var_t* VarCtor(char* name) {
     
     return new_var;
 }
-
-CodeError_t SeparateVars(Forest_t* forest) {
-    my_assert(forest, NULLPTR, NULLPTR);
-
-    for (int i = 0; i < forest->var_cnt; ++i) {
-        char* name = forest->vars[i]->name;
-        while (*name != '\0')
-            ++name;
-
-        *name = '\0';
-    }
-
-    return NOTHING;
-}
-
-CodeError_t TexDump(Forest_t* forest, int ind, const char* add_msg) {
-    my_assert(forest, NULLPTR, NULLPTR);
-    my_assert(ind >= 0, IND_ERR, IND_ERR);
-    my_assert(ind < MAX_DIFFER, IND_ERR, IND_ERR);
-
-    static int tex_counter = 0;
-
-    FILE* tex_file = fopen(forest->tex_file_name, "a");
-
-    if (tex_counter++ == 0)
-        fprintf(tex_file, "\\documentclass{article}\n\\usepackage[utf8x]{inputenc}\n\\usepackage[english,russian]{babel}\n\\begin{document}\n");
-
-    fprintf(tex_file, "%s", add_msg);
-    fprintf(tex_file, "\\[");
-    TexPrinting(forest->tree[ind]->root, tex_file);
-    fprintf(tex_file, "\\]\n");
-
-    fclose(tex_file);
-
-    return NOTHING;
-} 
-
-CodeError_t TexPrinting(Node_t* node, FILE* file) {
-    if (!node)
-        return NOTHING;
-    
-    if (node->type == NUM) {
-        fprintf(file, "%lg", node->value->value);
-        return NOTHING;
-    }
-
-    if (node->type == VAR) {
-        fprintf(file, "%s", node->value->name);
-        return NOTHING;
-    }
-
-    fprintf(file, "%s", opers[node->value->type].first_tex_view);
-
-    TexPrinting(node->left, file);
-    fprintf(file, "%s", opers[node->value->type].second_tex_view);
-
-    TexPrinting(node->right, file);
-
-    fprintf(file, "%s", opers[node->value->type].third_tex_view);
-
-    return NOTHING;
-}
-
-CodeError_t CloseTex(Forest_t* forest) {
-    my_assert(forest, NULLPTR, NULLPTR);
-
-    FILE* tex_file = fopen(forest->tex_file_name, "a");
-    fprintf(tex_file, "\n\\end{document}\n");
-    fclose(tex_file);
-
-    return NOTHING;
-}
-
-CodeError_t Dump(Forest_t* forest, int ind, VarInfo varinfo) {
-    my_assert(forest, NULLPTR, NULLPTR);
-    my_assert(ind >= 0, IND_ERR, IND_ERR);
-    my_assert(ind < MAX_DIFFER, IND_ERR, IND_ERR);
-
-    static int dump_counter = 0;
-
-    FILE* dump_file = fopen(forest->html_file_name, "a");
-    fprintf(dump_file, "<h2 style = \"color: blue\"> %s </h2>\n", varinfo.add_info);
-    const char* color = "green";
-    if (varinfo.error_code != NOTHING) {
-        fprintf(dump_file, "<h2 style = \"color: red\"> ERROR: %s</h2>\n", ErrorType(varinfo.error_code));
-        color = "red";
-    }
-
-    fprintf(dump_file, "<h2 style=\"color: %s\"> TreeDump called from %s, function: %s, line %d, list name: %s</h2>\n", color, varinfo.file_name, varinfo.func_name, varinfo.line, varinfo.name);
-
-    Tree_t* tree = forest->tree[ind];
-
-    if (tree->root == NULL) {
-        fprintf(dump_file, "<h3 style=\"color: red\">Root of tree pointer equal NULL</h3>\n");
-        return NULLPTR;
-    }
-
-    fprintf(dump_file, "<h3>");
-    Printing(forest->tree[ind]->root, dump_file);
-    fprintf(dump_file, "</h3>");
-
-    TreeImgDump(forest, ind);
-
-    char dot_str[100] = {};
-    sprintf(dot_str, "\"C:\\Program Files\\Graphviz\\bin\\dot.exe\" tree.dot -T svg -o result%d.svg", dump_counter);
-    system(dot_str);
-
-    char img_path[100] = {};
-    sprintf(img_path, "result%d.svg", dump_counter++);
-    fprintf(dump_file, "<img src=\"%s\">\n", img_path);
-    fprintf(dump_file, "<hr>\n");
-    fclose(dump_file);
-
-    TexDump(forest, ind, varinfo.add_info);
-
-    return NOTHING;
-}
-
-void TreeImgDump(Forest_t* forest, int ind) {
-    FILE* dot_file = fopen(forest->dot_file_name, "w");
-    fprintf(dot_file, "digraph G {\n");
-
-    RecDump(forest->tree[ind]->root, dot_file);
-
-    fprintf(dot_file, "}");
-    fclose(dot_file);
-}
-
-void RecDump(Node_t* root, FILE* dot_file) {
-    fprintf(dot_file, "\tNode%llX[shape = Mrecord, style = \"filled\", fillcolor = \"#%06x\", label = <\n\t<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"5\">\n\t\t<TR>\n\t\t\t<TD> ptr: 0x%llX </TD>\n\t\t</TR>\n\n\t\t<TR>\n\t\t\t<TD> ", (ull)root, (unsigned int)CalcHash((long long)root), (ull)root);
-    
-    if (root->type == OPER) {
-        fprintf(dot_file, "%s", opers[root->value->type].dump_view);
-    } 
-    else if (root->type == NUM) {
-        fprintf(dot_file, "%lg", root->value->value);
-    }
-    else {
-        fprintf(dot_file, "%s", root->value->name);
-    }
-
-    fprintf(dot_file, " </TD>\n\t\t</TR>\n\n\t\t<TR>\n\t\t\t<TD BGCOLOR = \"#%06x\"> left: ", (unsigned int)CalcHash((long long)root->left));
-    if (root->left)
-        fprintf(dot_file, "0x%llX", (ull)root->left);
-    else
-        fprintf(dot_file, "NULL");
-
-    fprintf(dot_file, " </TD>\n\t\t</TR>\n\n\t\t<TR>\n\t\t\t<TD BGCOLOR = \"#%06x\"> right: ", (unsigned int)CalcHash((long long)root->right));
-    if (root->right)
-        fprintf(dot_file, "0x%llX", (ull)root->right);
-    else
-        fprintf(dot_file, "NULL");
-
-    fprintf(dot_file, "</TD>\n\t\t</TR>\n\t</TABLE>>];\n\n");
-
-    if (root->left) {
-        RecDump(root->left, dot_file);
-        fprintf(dot_file, "\tNode%llX->Node%llX;\n", (ull)root, (ull)root->left);
-    }
-    if (root->right) {
-        RecDump(root->right, dot_file);
-        fprintf(dot_file, "\tNode%llX->Node%llX;\n", (ull)root, (ull)root->right);
-    }
-}
-
-int CalcHash(long long p) {
-    int c = (int)p;
-
-    c = (c ^ (c >> 16)) * 0xC4CEB9FE;
-    c = (c ^ (c >> 13)) * 0xFF51AFD7;
-    c = c ^ (c >> 16);
-
-    return (c >> 8) | 0x00808080;
-}
-
-CodeError_t Printing(Node_t* node, FILE* file) {
-    if (!node)
-        return NOTHING;
-    
-    if (node->type == NUM) {
-        fprintf(file, "%lg", node->value->value);
-        return NOTHING;
-    }
-
-    if (node->type == VAR) {
-        fprintf(file, "%c", node->value->name);
-        return NOTHING;
-    }
-
-    fprintf(file, "%s", opers[node->value->type].first_print_view);
-    Printing(node->left, file);
-
-    fprintf(file, "%s", opers[node->value->type].second_print_view);
-    Printing(node->right, file);
-
-    fprintf(file, "%s", opers[node->value->type].third_print_view);
-
-    return NOTHING;
-}
-
 
 ValueType* ValueOperCtor(int type) {
     ValueType* value = (ValueType*)calloc(1, sizeof(ValueType));
@@ -434,9 +253,6 @@ ValueType* ValueNumCtor(double value) {
     return val_type;
 }
 
-#define NUM_Ctor(x) NodeCtor(NUM, ValueNumCtor(x), NULL, NULL)
-double values[26] = {0};
-
 double CalculatingTree(Forest_t* forest, int ind) {
     my_assert(forest, NULLPTR, NAN);
     my_assert(ind >= 0, IND_ERR, NAN);
@@ -444,7 +260,7 @@ double CalculatingTree(Forest_t* forest, int ind) {
 
     printf("Enter the values of vars:\n");
     for (int i = 0; i < forest->var_cnt; ++i) {
-        printf("%s: ", forest->vars[i]->name);
+        printf("%s = ", forest->vars[i]->name);
         scanf("%lg", &forest->vars[i]->value);
     }
 
@@ -470,80 +286,27 @@ double CalculatingNode(Node_t* node, Forest_t* forest) {
     double left_res = CalculatingNode(node->left, forest);
     double right_res = CalculatingNode(node->right, forest);
 
-    return opers[node->value->type].func(NUM_Ctor(left_res), NUM_Ctor(right_res));
+    double result = opers[node->value->type].func(NUM_NODE(left_res), NUM_NODE(right_res));
+
+    return result;
 }
 
-Node_t* Differ(Node_t* node, char* var_name) {
-    my_assert(node, NULLPTR, NULL);
+double CalcConstNode(Node_t* node, double value) {
+    if (!node)
+        return NAN;
 
     if (node->type == NUM)
-        return NodeCtor(NUM, ValueNumCtor(0), NULL, NULL);
+        return node->value->value;
 
-    if (node->type == VAR) {
-        if (!strcmp(node->value->name, var_name))
-            return NodeCtor(NUM, ValueNumCtor(1), NULL, NULL);
-        
-        return NodeCtor(NUM, ValueNumCtor(0), NULL, NULL);
-    }
+    if (node->type == VAR)
+        return value;
 
-    #define d(node) Differ(node, var_name)
-    #define c(node) CopyNode(node)
-    #define OP_NODE(OPNAME, left, right) NodeCtor(OPER, ValueOperCtor(OPNAME), left, right)
+    double left_res = CalcConstNode(node->left, value);
+    double right_res = CalcConstNode(node->right, value);
 
-    Node_t* new_node = NULL;
+    double result = opers[node->value->type].func(NUM_NODE(left_res), NUM_NODE(right_res));
 
-    switch (node->value->type) {
-        case OP_ADD:
-            new_node = OP_NODE(OP_ADD, d(node->left), d(node->right));
-            return new_node;
-
-        case OP_SUB:
-            new_node = OP_NODE(OP_SUB, d(node->left), d(node->right));
-            return new_node;
-
-        case OP_MUL:
-            new_node = OP_NODE(OP_ADD, NULL, NULL);
-            new_node->left = OP_NODE(OP_MUL, d(node->left), c(node->right));
-            new_node->right = OP_NODE(OP_MUL, c(node->left), d(node->right));
-            return new_node;
-        
-        case OP_DIV:
-            new_node = OP_NODE(OP_DIV, NULL, NULL);
-
-            new_node->left = OP_NODE(OP_SUB, NULL, NULL);
-            new_node->left->left = OP_NODE(OP_MUL, d(node->left), c(node->right));
-            new_node->left->right = OP_NODE(OP_MUL, c(node->left), d(node->right));
-
-            new_node->right = OP_NODE(OP_POW_C, c(node->right), NUM_Ctor(2));
-            return new_node;
-        
-        case OP_COS:
-            new_node = OP_NODE(OP_MUL, NULL, d(node->right));
-
-            new_node->left = OP_NODE(OP_MUL, NUM_Ctor(-1), OP_NODE(OP_SIN, NULL, c(node->right)));
-            return new_node;
-
-        case OP_SIN:
-            new_node = OP_NODE(OP_MUL, OP_NODE(OP_COS, NULL, c(node->right)), d(node->right));
-            return new_node;
-
-        case OP_POW_C:
-            my_assert(node->right->type == NUM, VALUE_ERR, NULL);
-
-            return OP_NODE(OP_MUL, d(node->left), OP_NODE(OP_MUL, NUM_Ctor(GetValue(node->right)), OP_NODE(OP_POW_C, c(node->left), NUM_Ctor(GetValue(node->right) - 1))));
-        
-        case OP_LN:
-            return OP_NODE(OP_DIV, d(node->right), c(node->right));
-
-        case OP_LOG:
-            return Differ(OP_NODE(OP_DIV, OP_NODE(OP_LN, NULL, c(node->right)), OP_NODE(OP_LN, NULL, c(node->left))), var_name);
-    }
-
-    #undef d
-    #undef c
-    #undef OP_NODE
-
-    return NULL;
+    return result;
 }
 
 Node_t* CopyNode(Node_t* node) {
@@ -567,106 +330,139 @@ double GetValue(Node_t* node) {
     return node->value->value;
 }
 
-Node_t* ConvolConst(Node_t* node) {
-    if (!node)
-        return node;
-
-    if (node->type == NUM) 
-        return node;
-
-    if (node->type == VAR)
-        return node;
-
-    node->left = RemovingNeutral(node->left);
-    node->right = RemovingNeutral(node->right);
-
-    node->left = ConvolConst(node->left);
-    node->right = ConvolConst(node->right);
-
-    #define is_const(node, dir) (node->dir && node->dir->type == NUM) 
-    if (node->value->type == OP_COS || node->value->type == OP_SIN) { //добавить случай для NULL
-        if (!is_const(node, right))
-            return node;
-
-        node->type = NUM;
-        if (node->value->type == OP_COS) 
-            node->value->value = cos(GetValue(node->right));
-        else
-            node->value->value = sin(GetValue(node->right));
-
-        node->left = node->right = NULL;
-    }
-    else if (is_const(node, left) && is_const(node, right)) {
-        node->type = NUM;
-        node->value->value = opers[node->value->type].func(node->left, node->right);
-
-        node->left = node->right = NULL;
-    }
-    #undef is_const
-
-    return node;
-}
-
-Node_t* RemovingNeutral(Node_t* node) {
+Node_t* GetLeft(Node_t* node) {
     if (!node)
         return NULL;
 
-    node->left = ConvolConst(node->left);
-    node->right = ConvolConst(node->right);
+    return node->left;
+}
 
-    node->left = RemovingNeutral(node->left);
-    node->right = RemovingNeutral(node->right);
+Node_t* GetRight(Node_t* node) {
+    if (!node)
+        return NULL;
 
-    if (node->type == NUM || node->type == VAR)
-        return node;
+    return node->right;
+}
 
-    #define is_null(node, dir) (node->dir && node->dir->type == NUM && node->dir->value->value == 0)
-    #define is_one(node, dir) (node->dir && node->dir->type == NUM && node->dir->value->value == 1)
+void ConvolConst(Node_t** node) {
+    if (!node || !(*node))
+        return;
+
+    if ((*node)->type == NUM) 
+        return;
+
+    if ((*node)->type == VAR)
+        return;
+
+    #define is_const(node, dir) ((node)->dir && (node)->dir->type == NUM) 
+    int oper = (*node)->value->type;
+
+    if (oper != OP_ADD && oper != OP_SUB && oper != OP_MUL && oper != OP_POW && oper != OP_LOG && oper != OP_DIV) {
+        if (!is_const(*node, right))
+            return;
+
+        (*node)->type = NUM;
+        (*node)->value->value = opers[oper].func(GetLeft(*node), GetRight(*node));
+
+        (*node)->left = (*node)->right = NULL;
+    }
+    else if (is_const(*node, left) && is_const(*node, right)) {
+        (*node)->type = NUM;
+        (*node)->value->value = opers[oper].func(GetLeft(*node), GetRight(*node));
+
+        (*node)->left = (*node)->right = NULL;
+    }
+    #undef is_const
+
+    return;
+}
+
+void RemovingNeutral(Node_t** node) {
+    if (!node || !(*node))
+        return;
+
+    if ((*node)->type == NUM) 
+        return;
+
+    if ((*node)->type == VAR)
+        return;
+
+    #define is_num(node, dir) ((node)->dir && (node)->dir->type == NUM)
+    #define is_null(node, dir) (is_num(node, dir) && GetValue((node)->dir) == 0)
+    #define is_one(node, dir) (is_num(node, dir) && GetValue((node)->dir) == 1)
     
-    if (node->value->type == OP_MUL) {
-        if (is_null(node, left) || is_null(node, right)) {
-            node->type = NUM;
-            node->value->value = 0;
-            return node;
+    int oper = (*node)->value->type;
+    
+    if ((*node)->type == OPER && (*node)->value->type == OP_MUL && is_num(*node, right)) {
+        Node_t* add_son = (*node)->right;
+        (*node)->right = (*node)->left;
+        (*node)->left = add_son;
+    }
+
+    if (oper == OP_MUL) {
+        Node_t* right = GetRight(*node);
+        if (is_num(*node, left) && right &&  right->type == OPER && right->value->type == OP_MUL && is_num(right, left)) {
+            double value = GetValue((*node)->left);
+            *node = right;
+            (*node)->left->value->value *= value; 
+            return;
+        }
+
+        if (is_one(*node, left))
+            *node = GetRight(*node);
+        else if (is_one(*node, right))
+            *node = GetLeft(*node);
+
+        if (is_null(*node, left) || is_null(*node, right)) {
+            (*node)->type = NUM;
+            (*node)->value->value = 0;
+            return;
         }
     }
 
-    if (node->value->type != OP_SIN && node->value->type != OP_COS) {
-        switch (node->value->type) {
+    if (oper == OP_ADD || oper == OP_SUB || oper == OP_DIV || oper == OP_POW) {
+        switch (oper) {
             case OP_ADD:
-                if (is_null(node, right))
-                    node = node->left;
-                else if (is_null(node, left))
-                    node = node->right;
+                if (is_null(*node, right))
+                    *node = GetLeft(*node);
+                else if (is_null(*node, left))
+                    *node = GetRight(*node);
+                break;
             case OP_SUB:
-                if (is_null(node, right))
-                    node = node->left;
+                if (is_null(*node, right))
+                    *node = GetLeft(*node);
                 break;
             case OP_DIV:
-                if (is_one(node, right))
-                    node = node->left;
+                if (is_one(*node, right))
+                    *node = GetLeft(*node);
                 break;
-            case OP_MUL:
-                if (is_one(node, left)) {
-                    node = node->right;
-                }
-                else if (is_one(node, right)) {
-                    node = node->left;
-                }
-                break;
-            case OP_POW_C:
-                if (is_one(node, right)) {
-                    node = node->left;
-                }
-                else if (is_null(node, right) || is_one(node, left)) {
-                    node = NUM_Ctor(1);
-                }
+            case OP_POW:
+                if (is_one(*node, right))
+                    *node = GetLeft(*node);
+                else if (is_null(*node, right) || is_one(*node, left))
+                    *node = NUM_NODE(1);
                 break;
         }
     }
 
+    #undef is_num
     #undef is_null
     #undef is_one
 
-    return node;
+    return;
+}
+
+CodeError_t Optimization(Node_t** node_ptr) {
+    Node_t* node = *node_ptr;
+
+    if (!node || !node_ptr)
+        return NULLPTR;
+
+    Optimization(&node->left);
+    Optimization(&node->right);
+
+    ConvolConst(node_ptr);
+    RemovingNeutral(node_ptr);
+
+    return NOTHING;
 }

@@ -6,14 +6,27 @@
 #include <ctype.h>
 #include <sys/stat.h>
 #include <math.h>
+#include "dump.h"
+#include "tex_utils.h"
+#include "parsing.h"
 #include "errors.h"
 #include "vars.h"
 #include "calc.h"
+#include "differ.h"
+#include "plot.h"
 
-#define dump(forest, ind, error_code, add_info) Dump(forest, ind, VarInfo{#forest, __FILE__, __FUNCTION__, __LINE__, error_code, add_info})
+#define DUMP(forest, ind, error_code, add_info) Dump(forest, ind, VarInfo{#forest, __FILE__, __FUNCTION__, __LINE__, error_code, add_info})
+#define NUM_NODE(x) NodeCtor(NUM, ValueNumCtor(x), NULL, NULL)
+#define VAR_NODE(name) NodeCtor(VAR, ValueVarCtor(name), NULL, NULL)
+#define OP_NODE(OPNAME, left, right) NodeCtor(OPER, ValueOperCtor(OPNAME), left, right)
 
+#define PRINT_TO_TEX(forest, message) PrintToTex(forest->tex_file_name, message)
+
+#define c(node) CopyNode(node)
+
+const int MAX_VAR_SIZE = 100;
 const int MAX_NODES_CNT = 10000;
-const int MAX_DIFFER = 100;
+const int MAX_DIFFER = 1000;
 const int MAX_VARS_CNT = 100;
 
 enum TYPES {
@@ -29,9 +42,16 @@ enum OPERATIONS {
     OP_DIV     =   3,
     OP_COS     =   4,
     OP_SIN     =   5,
-    OP_POW_C   =   6,
+    OP_POW     =   6,
     OP_LN      =   7,
     OP_LOG     =   8,
+    OP_EXP     =   9,
+    OP_TAN     =  10,
+    OP_COT     =  11,
+    OP_ASIN    =  12,
+    OP_ACOS    =  13,
+    OP_ATAN    =  14,
+    OP_ACOT    =  15,
 
     OPER_CNT
 };
@@ -78,75 +98,47 @@ struct Forest_t {
 
 struct Operation_t {
     int type;
-    const char* base_view;
 
-    const char* first_tex_view;
-    const char* second_tex_view;
-    const char* third_tex_view;
+    const char* tex_view;
 
     const char* dump_view;
-
-    const char* first_print_view;
-    const char* second_print_view;
-    const char* third_print_view;
 
     double (*func) (Node_t*, Node_t*);
 };
 
 const Operation_t opers[] = {
-    { .type = OP_ADD, .base_view = "+", 
-        .first_tex_view = "", .second_tex_view = " + ", .third_tex_view = "",
-        .dump_view = "+", 
-        .first_print_view = "", .second_print_view = " + ", .third_print_view = "",
-        .func = Sum},
-
-    { .type = OP_SUB, .base_view = "-", 
-        .first_tex_view = "", .second_tex_view = " - ", .third_tex_view = "",
-        .dump_view = "-", 
-        .first_print_view = "", .second_print_view = " - ", .third_print_view = "", 
-        .func = Sub},
-
-    { .type = OP_MUL, .base_view = "*", 
-        .first_tex_view = "(", .second_tex_view = ") \\times (", .third_tex_view = ")",
-        .dump_view = "*", 
-        .first_print_view = "(", .second_print_view = ") * (", .third_print_view = ")", 
-        .func = Mul},
-        
-    { .type = OP_DIV, .base_view = "/", 
-        .first_tex_view = "\\frac{", .second_tex_view = "}{", .third_tex_view = "}",
-        .dump_view = "/", 
-        .first_print_view = "(", .second_print_view = ") / (", .third_print_view = ")", 
-        .func = Div},
-        
-    { .type = OP_COS, .base_view = "cos", 
-        .first_tex_view = "", .second_tex_view = "\\cos (", .third_tex_view = ")",
-        .dump_view = "cos", 
-        .first_print_view = "", .second_print_view = "cos (", .third_print_view = ")", 
-        .func = Cos},
-        
-    { .type = OP_SIN, .base_view = "sin", 
-        .first_tex_view = "", .second_tex_view = "\\sin (", .third_tex_view = ")",
-        .dump_view = "sin", 
-        .first_print_view = "", .second_print_view = "sin (", .third_print_view = ")", 
-        .func = Sin},
+    { .type = OP_ADD,   .tex_view = " + ",            .dump_view = "+",        .func = Sum   },
+   
+    { .type = OP_SUB,   .tex_view = " - ",            .dump_view = "-",        .func = Sub   },
+   
+    { .type = OP_MUL,   .tex_view = " \\cdot ",       .dump_view = "*",        .func = Mul   },
+   
+    { .type = OP_DIV,   .tex_view = "",               .dump_view = "/",        .func = Div   },
+   
+    { .type = OP_COS,   .tex_view = "\\cos ",         .dump_view = "cos",      .func = Cos   },
+   
+    { .type = OP_SIN,   .tex_view = "\\sin ",         .dump_view = "sin",      .func = Sin   },
+   
+    { .type = OP_POW,   .tex_view = " ^ ",            .dump_view = "pow",      .func = Pow   },
+   
+    { .type = OP_LN,    .tex_view = "\\ln",           .dump_view = "ln",       .func = Ln    },
+   
+    { .type = OP_LOG,   .tex_view = "",               .dump_view = "log",      .func = Log   },
+   
+    { .type = OP_EXP,   .tex_view = "e ^ ",           .dump_view = "exp",      .func = Exp   },
+   
+    { .type = OP_TAN,   .tex_view = "\\tan ",         .dump_view = "tan",      .func = Tan   },
+       
+    { .type = OP_COT,   .tex_view = "\\cot ",         .dump_view = "cot",      .func = Cot   },
     
-    { .type = OP_POW_C, .base_view = "pow_c", 
-        .first_tex_view = "(", .second_tex_view = ") ^ ", .third_tex_view = "",
-        .dump_view = "pow_c", 
-        .first_print_view = "(", .second_print_view = ") pow_c ", .third_print_view = "", 
-        .func = Pow_c},
-        
-    { .type = OP_LN, .base_view = "ln", 
-        .first_tex_view = "", .second_tex_view = "ln (", .third_tex_view = ")",
-        .dump_view = "ln", 
-        .first_print_view = "", .second_print_view = "ln (", .third_print_view = ")", 
-        .func = Ln},
+    { .type = OP_ASIN,   .tex_view = "\\arcsin ",     .dump_view = "arcsin",   .func = Asin  },
+    
+    { .type = OP_ACOS,   .tex_view = "\\arccos ",     .dump_view = "arccos",   .func = Acos  },
+    
+    { .type = OP_ATAN,   .tex_view = "\\arctan ",     .dump_view = "arctan",   .func = Atan  },
+    
+    { .type = OP_ACOT,   .tex_view = "\\operatorname{arccot} ", .dump_view = "arccot",   .func = Acot  },
 
-    { .type = OP_LOG, .base_view = "log", 
-        .first_tex_view = "log_{", .second_tex_view = "} (", .third_tex_view = ")",
-        .dump_view = "log", 
-        .first_print_view = "log (", .second_print_view = ") (", .third_print_view = ")", 
-        .func = Log},
 };
 
 Forest_t* ForestCtor();
@@ -158,31 +150,31 @@ CodeError_t TreeDtor(Node_t* root);
 CodeError_t TreeVerify(Tree_t* tree);
 int GetSize(Node_t* root);
 
+CodeError_t SetParams(const char* param_file, Forest_t** forest, double* x0, int* der_cnt, char** var_name, double* x_delta, double* y_delta);
+
 CodeError_t ReadBase(Forest_t* forest, const char* file_name);
 int get_file_size(const char* file_name);
-Node_t* ParseBase(char** cur_pos, Forest_t* forest);
+CodeError_t ParseForest(Forest_t* forest);
+
+CodeError_t SelectForestVars(Forest_t* forest);
+void SelectTreeVars(Node_t* node, Forest_t* forest);
 Var_t* VarCtor(char* name);
-CodeError_t SeparateVars(Forest_t* forest);
+bool CheckVars(Forest_t* forest, char* var_name);
 
-CodeError_t TexDump(Forest_t* forest, int ind, const char* add_msg);
-CodeError_t TexPrinting(Node_t* node, FILE* file);
-CodeError_t CloseTex(Forest_t* forest);
-
-CodeError_t Dump(Forest_t* forest, int ind, VarInfo varinfo);
-void TreeImgDump(Forest_t* forest, int ind);
-void RecDump(Node_t* root, FILE* dot_file);
-int CalcHash(long long p);
-int ParseNode(Node_t* node);
-
-Node_t* Differ(Node_t* node, char* var_name);
 Node_t* CopyNode(Node_t* node);
-CodeError_t Printing(Node_t* node, FILE* file);
+
+ValueType* ValueOperCtor(int type);
+ValueType* ValueVarCtor(char* name);
+ValueType* ValueNumCtor(double value);
 
 double CalculatingTree(Forest_t* forest, int ind);
 double CalculatingNode(Node_t* node, Forest_t* forest);
+double CalcConstNode(Node_t* node, double value);
 
 double GetValue(Node_t* node);
-Node_t* ConvolConst(Node_t* node);
-Node_t* RemovingNeutral(Node_t* node);
+void ConvolConst(Node_t** node);
+void RemovingNeutral(Node_t** node);
+
+CodeError_t Optimization(Node_t** node_ptr);
 
 #endif
