@@ -1,0 +1,6 @@
+sin (15 * x ^ 3 + 5) + cos (20 * x + 7) ^ 5$
+set x0         3
+set var_name   x
+set differ     3
+set x_delta    0.1
+set y_delta    1.0
