@@ -27,6 +27,7 @@ Tree_t* TreeCtor() {
     value->value = 0;
     tree->root = NodeCtor(NUM, value, NULL, NULL);
     tree->nodes_cnt = 1;
+    tree->name = "function";
 
     return tree;
 }
@@ -315,7 +316,8 @@ Node_t* CopyNode(Node_t* node) {
 
     Node_t* new_node = (Node_t*)calloc(1, sizeof(Node_t));
     new_node->type = node->type;
-    new_node->value = node->value;
+    new_node->value = (ValueType*)calloc(1, sizeof(ValueType));
+    *(new_node->value) = *(node->value);
 
     new_node->left = CopyNode(node->left);
     new_node->right = CopyNode(node->right);
@@ -348,10 +350,7 @@ void ConvolConst(Node_t** node) {
     if (!node || !(*node))
         return;
 
-    if ((*node)->type == NUM) 
-        return;
-
-    if ((*node)->type == VAR)
+    if ((*node)->type == NUM || (*node)->type == VAR) 
         return;
 
     #define is_const(node, dir) ((node)->dir && (node)->dir->type == NUM) 
@@ -381,68 +380,65 @@ void RemovingNeutral(Node_t** node) {
     if (!node || !(*node))
         return;
 
-    if ((*node)->type == NUM) 
+    if ((*node)->type == NUM || (*node)->type == VAR) 
         return;
 
-    if ((*node)->type == VAR)
-        return;
-
-    #define is_num(node, dir) ((node)->dir && (node)->dir->type == NUM)
-    #define is_null(node, dir) (is_num(node, dir) && GetValue((node)->dir) == 0)
-    #define is_one(node, dir) (is_num(node, dir) && GetValue((node)->dir) == 1)
+    #define is_const(node, dir) ((node)->dir && (node)->dir->type == NUM)
+    #define is_null(node, dir) (is_const(node, dir) && (GetValue((node)->dir) == double(0)))
+    #define is_one(node, dir) (is_const(node, dir) && (GetValue((node)->dir) == double(1)))
     
     int oper = (*node)->value->type;
     
-    if ((*node)->type == OPER && (*node)->value->type == OP_MUL && is_num(*node, right)) {
+    if ((*node)->type == OPER && (*node)->value->type == OP_MUL && is_const(*node, right)) {
         Node_t* add_son = (*node)->right;
         (*node)->right = (*node)->left;
         (*node)->left = add_son;
     }
 
-    if (oper == OP_MUL) {
-        Node_t* right = GetRight(*node);
-        if (is_num(*node, left) && right &&  right->type == OPER && right->value->type == OP_MUL && is_num(right, left)) {
-            double value = GetValue((*node)->left);
-            *node = right;
-            (*node)->left->value->value *= value; 
-            return;
-        }
+    switch (oper) {
+        case OP_ADD:
+            if (is_null(*node, right))
+                *node = GetLeft(*node);
+            else if (is_null(*node, left))
+                *node = GetRight(*node);
+            break;
+        case OP_SUB:
+            if (is_null(*node, right))
+                *node = GetLeft(*node);
+            break;
+        case OP_DIV:
+            if (is_one(*node, right))
+                *node = GetLeft(*node);
+            break;
+        case OP_POW:
+            if (is_one(*node, right))
+                *node = GetLeft(*node);
+            else if (is_null(*node, right) || is_one(*node, left))
+                *node = NUM_NODE(1);
+            break;
+        case OP_MUL:
+            Node_t* right = GetRight(*node);
+            Node_t* last_node = *node;
+            if (is_const(*node, left) && right &&  right->type == OPER && right->value->type == OP_MUL && is_const(right, left)) {
+                double value = GetValue((*node)->left);
+                *node = right;
+                (*node)->left->value->value *= value; 
+                return;
+            }
 
-        if (is_one(*node, left))
-            *node = GetRight(*node);
-        else if (is_one(*node, right))
-            *node = GetLeft(*node);
+            if (is_one(*node, left)) {
+                *node = GetRight(*node);
+                return;
+            }
+            else if (is_one(*node, right)) {
+                *node = GetLeft(*node);
+                return;
+            }
 
-        if (is_null(*node, left) || is_null(*node, right)) {
-            (*node)->type = NUM;
-            (*node)->value->value = 0;
-            return;
-        }
-    }
-
-    if (oper == OP_ADD || oper == OP_SUB || oper == OP_DIV || oper == OP_POW) {
-        switch (oper) {
-            case OP_ADD:
-                if (is_null(*node, right))
-                    *node = GetLeft(*node);
-                else if (is_null(*node, left))
-                    *node = GetRight(*node);
-                break;
-            case OP_SUB:
-                if (is_null(*node, right))
-                    *node = GetLeft(*node);
-                break;
-            case OP_DIV:
-                if (is_one(*node, right))
-                    *node = GetLeft(*node);
-                break;
-            case OP_POW:
-                if (is_one(*node, right))
-                    *node = GetLeft(*node);
-                else if (is_null(*node, right) || is_one(*node, left))
-                    *node = NUM_NODE(1);
-                break;
-        }
+            if (is_null(*node, left) || is_null(*node, right)) {
+                *node = NUM_NODE(0);
+                return;
+            }
     }
 
     #undef is_num
@@ -453,16 +449,14 @@ void RemovingNeutral(Node_t** node) {
 }
 
 CodeError_t Optimization(Node_t** node_ptr) {
-    Node_t* node = *node_ptr;
-
-    if (!node || !node_ptr)
+    if (!node_ptr || !(*node_ptr))
         return NULLPTR;
 
-    Optimization(&node->left);
-    Optimization(&node->right);
+    Optimization(&((*node_ptr)->left));
+    Optimization(&((*node_ptr)->right));
 
     ConvolConst(node_ptr);
     RemovingNeutral(node_ptr);
-
+    
     return NOTHING;
 }

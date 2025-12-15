@@ -16,6 +16,11 @@
 #include "plot.h"
 
 #define DUMP(forest, ind, error_code, add_info) Dump(forest, ind, VarInfo{#forest, __FILE__, __FUNCTION__, __LINE__, error_code, add_info})
+#define TREE_DUMP(tree_name, add_info)  {   Forest_t* dump_forest = ForestCtor(); \
+                                            dump_forest->tree[0] = tree_name; \
+                                            DUMP(dump_forest, 0, NOTHING, add_info); \
+                                        }
+
 #define NUM_NODE(x) NodeCtor(NUM, ValueNumCtor(x), NULL, NULL)
 #define VAR_NODE(name) NodeCtor(VAR, ValueVarCtor(name), NULL, NULL)
 #define OP_NODE(OPNAME, left, right) NodeCtor(OPER, ValueOperCtor(OPNAME), left, right)
@@ -25,7 +30,7 @@
 #define c(node) CopyNode(node)
 
 const int MAX_VAR_SIZE = 100;
-const int MAX_NODES_CNT = 10000;
+const int MAX_NODES_CNT = 1000000;
 const int MAX_DIFFER = 1000;
 const int MAX_VARS_CNT = 100;
 
@@ -74,6 +79,8 @@ struct Node_t {
 struct Tree_t {
     Node_t* root = NULL;
 
+    const char* name = NULL;
+    
     size_t nodes_cnt = 0;
 };
 
