@@ -3,16 +3,20 @@
 #include "dump.h"
 #include "folders.h"
 
-const char* colors[] = {  "#000000", "#000080", "#008000", "#800000", "#A84503", "#800080"};
+const char* colors[] = {  "#000000", "#0808c4ff", "#008000", "#800000", "#A84503", "#800080"};
+const char* point_color = "#FBB117";
 
-const double delta = 0.001;
+const double delta = 0.00001;
 
-void PrintPlot(Node_t* node, const char* tex_name, double x0, double x_delta, double y_delta) {
-    if (!node || !tex_name)
+void PrintPlot(Tree_t* tree, const char* tex_name, double x0, double x_delta, double y_delta) {
+    if (!tree || !tex_name)
         return;
     
-    PrintData(node, "data.txt", x0, x_delta, y_delta);
-    char* plot_name = GnuPlot(x0, x_delta, 1, "data.txt");
+    char* data_file = (char*)calloc(10, sizeof(char));
+    sprintf(data_file, "%s.txt", tree->name);
+
+    PrintData(tree->root, data_file, x0, x_delta, y_delta);
+    char* plot_name = GnuPlot(x0, x_delta, CalcConstNode(tree->root, x0), y_delta, 1, tree);
 
     AddPlot(tex_name, plot_name);
 }
@@ -38,8 +42,7 @@ void PrintData(Node_t* node, const char* file_name, double x0, double x_delta, d
 
     while (x <= (x0 + x_delta)) {
         double y = CalcConstNode(node, x);
-        if (y0 - y_delta <= y && y <= y0 + y_delta)
-            fprintf(data_file, "%lg %lg\n", x, y);
+        fprintf(data_file, "%lg %lg\n", x, y);
 
         x += delta;
     }
@@ -47,112 +50,66 @@ void PrintData(Node_t* node, const char* file_name, double x0, double x_delta, d
     fclose(data_file);
 }
 
-char* GnuPlot(double x0, double x_delta, int plot_cnt, ...) {
-    FILE* plot_file = fopen("plot.gnu", "w");
-
+char* GnuPlot(double x0, double x_delta, double y0, double y_delta, int plot_cnt, ...) {
     static int plot_ind = 0;
-
     char* plot_name = (char*)calloc(10, sizeof(char));
     snprintf(plot_name, 10, "plot%d.png", plot_ind++);
+
+    char plot_param[300];
+    int add_ptr = 0, print_symb = 0;
+    sprintf(plot_param + add_ptr, "plot %n", &print_symb);
+    add_ptr += print_symb;
 
     va_list args;
     va_start(args, plot_cnt);
 
-    char plot_param[300];
-    int add_ptr = 0, print_symb = 0;
-    double mn = 1000, mx = -1000;
-
-    sprintf(plot_param + add_ptr, "plot %n", &print_symb);
-    add_ptr += print_symb;
-
     for (int i = 0; i < plot_cnt; ++i) {
-        const char* data_file = va_arg(args, const char*);
+        Tree_t* tree = va_arg(args, Tree_t*);
+        PrintData(tree->root, tree->name, x0, x_delta, y_delta);
 
-        FILE* data = fopen(data_file, "r");
-        double x, y;
-        while (fscanf(data, "%lg %lg\n", &x, &y) == 2) {
-            if (y < mn || mn == NAN)
-                mn = y;
-
-            if (y > mx || mx == NAN)
-                mx = y;
-        }
-
-        fclose(data);
-
-        char* color = (char*)calloc(10, sizeof(char));
-        if (i >= sizeof(colors) / sizeof(colors[0]))
-            sprintf(color, "#%06X", DarkCalcHash((long long)data_file));
-        else
-            color = strdup(colors[i]);
-
-        char* file_name = strdup(data_file);
-        int p = 0;
-        while (file_name[p] != '\0') {
-            if (file_name[p] == '.') {
-                file_name[p] = '\0';
-                break;
-            }
-
-            ++p;
-        }
-
-        sprintf(plot_param + add_ptr, "'%s' with lines linewidth 3 lc rgb \"%s\" title '%s', %n", data_file, color, file_name, &print_symb);
-        
-        if (!strcmp(file_name, "x0"))
-            sprintf(plot_param + add_ptr, "'x0.txt' with points ps 2 pt 7 title 'x0', %n", color, &print_symb);
-
+        char* color = GetColor(i, (long long)tree->name);
+        sprintf(plot_param + add_ptr, "'%s' with lines linewidth 3 lc rgb \"%s\" title '%s', %n", tree->name, color, tree->name, &print_symb);
         add_ptr += print_symb;
     }
 
-    sprintf(plot_param + add_ptr, "\0");
-    
-    fprintf(plot_file, "set terminal png size 800,600\n");
-    fprintf(plot_file, "set xrange [%lg:%lg]\n", x0 - x_delta, x0 + x_delta);
-    fprintf(plot_file, "set yrange [%lg:%lg]\n", mn, mx);
-    fprintf(plot_file, "set output '%s'\n", plot_name);
-    fprintf(plot_file, "set grid\n");
-    fprintf(plot_file, "set multiplot\n");
-    fprintf(plot_file, "%s\n", plot_param);
-    fprintf(plot_file, "set nomultiplot\n");
     va_end(args);
-    
-    fclose(plot_file);
+
+    PrintPoint(x0, y0);
+    sprintf(plot_param + add_ptr, "'point' with points ps 2 pt 7 lc rgb \"%s\" title 'x0', \0", point_color);
+
+    PrintPlotParams(x0, x_delta, y0, y_delta, plot_name, plot_param);
     system("\"C:/Program Files/gnuplot/bin/gnuplot.exe\" plot.gnu");
 
     return plot_name;
 }
 
-double GetMin(Node_t* node, double left, double right) {
-    if (!node)
-        return NAN;
-
-    double mn = CalcConstNode(node, left);
-    while (left <= right) {
-        double value = CalcConstNode(node, left);
-        if (value < mn)
-            mn = value;
-
-        left += delta;
-    }
-
-    return mn;
+void PrintPoint(double x, double y) {
+    PrintData(NUM_NODE(y), "point", x, 0, 0);
 }
 
-double GetMax(Node_t* node, double left, double right) {
-    if (!node)
-        return NAN;
+void PrintPlotParams(double x0, double x_delta, double y0, double y_delta, const char* plot_name, const char* plot_param) {
+    FILE* plot_file = fopen("plot.gnu", "w");
+    
+    fprintf(plot_file, "set terminal png size 800,600\n");
+    fprintf(plot_file, "set xrange [%lg:%lg]\n", x0 - x_delta, x0 + x_delta);
+    fprintf(plot_file, "set yrange [%lg:%lg]\n", y0 - y_delta, y0 + y_delta);
+    fprintf(plot_file, "set output '%s'\n", plot_name);
+    fprintf(plot_file, "set grid\n");
+    fprintf(plot_file, "set multiplot\n");
+    fprintf(plot_file, "%s\n", plot_param);
+    fprintf(plot_file, "set nomultiplot\n");
+    
+    fclose(plot_file);
+}
 
-    double mx = CalcConstNode(node, left);
-    while (left <= right) {
-        double value = CalcConstNode(node, left);
-        if (value < mx)
-            mx = value;
+char* GetColor(int ind, long long ptr) {
+    char* color = (char*)calloc(10, sizeof(char));
+    if (ind >= sizeof(colors) / sizeof(colors[0]))
+        sprintf(color, "#%06X", DarkCalcHash(ptr));
+    else
+        color = strdup(colors[ind]);
 
-        left += delta;
-    }
-
-    return mx;
+    return color;
 }
 
 void PrintPdf(const char* tex_file_name) {
