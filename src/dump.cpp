@@ -58,7 +58,7 @@ void TreeImgDump(const char* dot_file_name, Node_t* root) {
 
 void RecDump(Node_t* root, FILE* dot_file) {
     fprintf(dot_file, "\tNode%llX[shape = Mrecord, style = \"filled\", fillcolor = \"#%06x\", label = <\n\t<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"5\">\n", (ull)root, (unsigned int)CalcHash((long long)root));
-    //fprintf(dot_file, "\t\t<TR>\n\t\t\t<TD> ptr: 0x%llX </TD>\n\t\t</TR>\n", (ull)root);
+    fprintf(dot_file, "\t\t<TR>\n\t\t\t<TD> ptr: 0x%llX </TD>\n\t\t</TR>\n", (ull)root);
     
     fprintf(dot_file, "\n\t\t<TR>\n\t\t\t<TD> ");
     if (root->type == OPER) {
@@ -72,7 +72,6 @@ void RecDump(Node_t* root, FILE* dot_file) {
     }
     fprintf(dot_file, " </TD>\n\t\t</TR>\n\n");
     
-    /*
     fprintf(dot_file, "\t\t<TR>\n\t\t\t<TD BGCOLOR = \"#%06x\"> left: ", (unsigned int)CalcHash((long long)root->left));
     if (root->left)
         fprintf(dot_file, "0x%llX", (ull)root->left);
@@ -87,7 +86,6 @@ void RecDump(Node_t* root, FILE* dot_file) {
     else
         fprintf(dot_file, "NULL");
     fprintf(dot_file, "</TD>\n\t\t</TR>\n");
-    */
 
     fprintf(dot_file, "\t</TABLE>>];\n\n");
     if (root->left) {
