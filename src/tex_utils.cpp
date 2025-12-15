@@ -9,17 +9,29 @@ CodeError_t TexDump(Forest_t* forest, int ind, const char* add_msg) {
     static int tex_counter = 0;
     if (tex_counter++ == 0) {
         FILE* tex_top = fopen(forest->tex_file_name, "w");
-        fprintf(tex_top, "\\documentclass{article}\n\\usepackage{graphicx}\n\\usepackage[utf8x]{inputenc}\n\\usepackage[english,russian]{babel}\n\\begin{document}\n");
+        fprintf(tex_top, "\\documentclass[a4paper,12pt]{article}\n");
+        fprintf(tex_top, "\\usepackage{graphicx}\n");
+        fprintf(tex_top, "\\usepackage{amsmath}\n");
+        fprintf(tex_top, "\\usepackage{geometry}\n");
+        fprintf(tex_top, "\\usepackage{amssymb}\n");
+        fprintf(tex_top, "\\usepackage[utf8x]{inputenc}\n");
+        fprintf(tex_top, "\\usepackage[english,russian]{babel}\n");
+        fprintf(tex_top, "\\geometry{left=2cm,right=2cm,top=2cm,bottom=2cm}\n");
+        fprintf(tex_top, "\\begin{document}\n");
         fclose(tex_top);
     }
 
     FILE* tex_file = fopen(forest->tex_file_name, "a");
 
-    fprintf(tex_file, "%s", add_msg);
+    fprintf(tex_file, "\\begin{center}\n");
+    fprintf(tex_file, "%s\n", add_msg);
+    fprintf(tex_file, "\\end{center}\n");
 
-    fprintf(tex_file, "\\[");
+    fprintf(tex_file, "\\begin{center}\n");
+    fprintf(tex_file, "\\begin{math}\n");
     TexPrinting(forest->tree[ind]->root, tex_file, OPER_CNT, 0);
-    fprintf(tex_file, "\\]\n");
+    fprintf(tex_file, "\n\\end{math}\n");
+    fprintf(tex_file, "\\end{center}\n");
 
     fclose(tex_file);
 
@@ -70,11 +82,19 @@ CodeError_t TexPrinting(Node_t* node, FILE* file, int prev_oper, int son_type) {
     else if (oper == OP_DIV)
         fprintf(file, "\\frac");
 
-    fprintf(file, "{");
+    bool is_fig = true;
+    if (oper == OP_ADD || oper == OP_MUL)
+        is_fig = false;
+
+    if (is_fig) fprintf(file, "{");
     TexPrinting(node->left, file, oper, 0);
-    fprintf(file, "} %s {", opers[oper].tex_view);
+    if (is_fig) fprintf(file, "}");
+
+    fprintf(file, " %s ", opers[oper].tex_view);
+
+    if (is_fig) fprintf(file, "{");
     TexPrinting(node->right, file, oper, 1);
-    fprintf(file, "}");
+    if (is_fig) fprintf(file, "}");
 
     if (is_par)
         fprintf(file, ")");
@@ -82,8 +102,16 @@ CodeError_t TexPrinting(Node_t* node, FILE* file, int prev_oper, int son_type) {
     return NOTHING;
 }
 
-void PrintToTex(const char* tex_file_name, const char* message) {
-    FILE* tex_file = fopen(tex_file_name, "a");
+void PrintToTex(const char* tex_name, const char* message) {
+    FILE* tex_file = fopen(tex_name, "a");
+    fprintf(tex_file, "\\begin{center}\n");
+    fprintf(tex_file, "%s", message);
+    fprintf(tex_file, "\\end{center}\n");
+    fclose(tex_file);
+}
+
+void WriteToTex(const char* tex_name, const char* message) {
+    FILE* tex_file = fopen(tex_name, "a");
     fprintf(tex_file, "%s", message);
     fclose(tex_file);
 }
